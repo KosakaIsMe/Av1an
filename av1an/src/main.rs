@@ -212,6 +212,10 @@ pub struct CliOpts {
     #[clap(long)]
     pub verbose: bool,
 
+    /// Prints current encoded frame and total frame count to stdout
+    #[clap(long)]
+    pub verbose_frame_info: bool,
+
     /// Log file location
     ///
     /// If not specified, the log file location will be `./logs/av1an.log` and
@@ -1146,6 +1150,7 @@ pub fn parse_cli(args: CliOpts) -> anyhow::Result<Vec<EncodeArgs>> {
             vmaf_threads: args.vmaf_threads,
             vmaf_filter: args.vmaf_filter.clone(),
             verbosity,
+            verbose_frame_info: args.verbose_frame_info,
             workers: args.workers,
             tiles: (1, 1), // default value; will be adjusted if tile_auto set
             tile_auto: args.tile_auto,

@@ -325,3 +325,42 @@ pub fn update_progress_bar_estimates(
         update_mp_bar_info(kbps, HumanBytes(est_size as u64), chunks);
     }
 }
+
+pub fn get_position() -> u64 {
+    // Prefer the multi-progress bar (verbose mode) if it has been initialised.
+    if let Some((_, pbs)) = MULTI_PROGRESS_BAR.get() {
+        if let Some(pb) = pbs.last() {
+            return pb.position();
+        }
+    }
+    if let Some(pb) = PROGRESS_BAR.get() {
+        return pb.position();
+    }
+    0
+}
+
+pub fn get_length() -> Option<u64> {
+    // Prefer the multi-progress bar (verbose mode) if it exists.
+    if let Some((_, pbs)) = MULTI_PROGRESS_BAR.get() {
+        if let Some(pb) = pbs.last() {
+            return pb.length();
+        }
+    }
+    if let Some(pb) = PROGRESS_BAR.get() {
+        return pb.length();
+    }
+    None
+}
+
+pub fn get_progress_fps() -> f64 {
+    // Prefer the multi-progress bar (verbose mode) if it exists.
+    if let Some((_, pbs)) = MULTI_PROGRESS_BAR.get() {
+        if let Some(pb) = pbs.last() {
+            return pb.position() as f64 / pb.elapsed().as_secs_f64();
+        }
+    }
+    if let Some(pb) = PROGRESS_BAR.get() {
+        return pb.position() as f64 / pb.elapsed().as_secs_f64();
+    }
+    0.0
+}

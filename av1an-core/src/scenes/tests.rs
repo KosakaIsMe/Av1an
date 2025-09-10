@@ -71,6 +71,7 @@ fn get_test_args() -> Av1anContext {
         target_quality:        TargetQuality::default("", Encoder::aom),
         vmaf:                  false,
         verbosity:             Verbosity::Normal,
+        verbose_frame_info:    false,
         workers:               1,
         tiles:                 (1, 1),
         tile_auto:             false,

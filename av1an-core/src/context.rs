@@ -38,6 +38,9 @@ use crate::{
     metrics::vmaf,
     progress_bar::{
         finish_progress_bar,
+        get_length,
+        get_position,
+        get_progress_fps,
         inc_bar,
         inc_mp_bar,
         init_multi_progress_bar,
@@ -712,6 +715,20 @@ impl Av1anContext {
                                         inc_mp_bar(new - frame);
                                     }
                                     frame = new;
+
+                                    // Print frame info if --verbose-frame-info is enabled.
+                                    // current_frame total_frames fps
+                                    if self.args.verbose_frame_info {
+                                        if let Some(len) = get_length() {
+                                            println!(
+                                                "{{\"frame\": {}, \"total_frames\": {}, \"fps\": \
+                                                 {}}}",
+                                                get_position(),
+                                                len,
+                                                get_progress_fps()
+                                            );
+                                        }
+                                    }
                                 }
                             }
                         }
