@@ -20,8 +20,8 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { workspace = true }
 av1an-core = { path = "../av1an-core", version = "0.4.1" }
-clap = { version = "4.5.45", features = ["derive"] }
-clap_complete = "4.5.57"
+clap = { version = "4.5.47", features = ["derive"] }
+clap_complete = "4.5.58"
 num-traits = { workspace = true }
 once_cell = { workspace = true }
 path_abs = { workspace = true }
@@ -117,7 +117,6 @@ ref_option_ref = "warn"
 # Disabled due to https://github.com/rust-lang/rust-clippy/issues/14697
 # self_named_module_files = "warn"
 semicolon_if_nothing_returned = "warn"
-string_to_string = "warn"
 tests_outside_test_module = "warn"
 transmute_ptr_to_ptr = "warn"
 unused_peekable = "warn"
