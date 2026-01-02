@@ -57,7 +57,7 @@ use crate::{
     scenes::{Scene, SceneFactory, ZoneOptions},
     settings::{EncodeArgs, InputPixelFormat},
     split::segment,
-    vapoursynth::create_vs_file,
+    vapoursynth::{create_vs_file, LoadscriptArgs},
     zones::{parse_zones, validate_zones},
     ChunkMethod,
     ChunkOrdering,
@@ -78,6 +78,7 @@ pub struct Av1anContext {
 
 impl Av1anContext {
     #[tracing::instrument(level = "debug")]
+    #[inline]
     pub fn new(mut args: EncodeArgs) -> anyhow::Result<Self> {
         args.validate()?;
 
@@ -189,15 +190,16 @@ impl Av1anContext {
                     is_proxy,
                     ..
                 } => {
-                    let (script_path, _) = create_vs_file(
-                        &self.args.temp,
-                        path,
-                        self.args.chunk_method,
-                        self.args.sc_downscale_height,
-                        self.args.sc_pix_format,
-                        &self.args.scaler,
-                        *is_proxy,
-                    )?;
+                    let (script_path, _) = create_vs_file(&LoadscriptArgs {
+                        temp:                             &self.args.temp,
+                        source:                           path,
+                        chunk_method:                     self.args.chunk_method,
+                        scene_detection_downscale_height: self.args.sc_downscale_height,
+                        scene_detection_pixel_format:     self.args.sc_pix_format,
+                        scene_detection_scaler:           &self.args.scaler,
+                        is_proxy:                         *is_proxy,
+                        cache_mode:                       self.args.cache_mode,
+                    })?;
                     script_path
                 },
             };
@@ -767,6 +769,20 @@ impl Av1anContext {
         }
 
         if current_pass == chunk.passes {
+            if !fs::exists(chunk.output()).map_err(|e| (anyhow::anyhow!("{e}"), frame))?
+                || fs::metadata(chunk.output()).map_err(|e| (anyhow::anyhow!("{e}"), frame))?.len()
+                    == 0
+            {
+                return Err((
+                    anyhow::anyhow!(
+                        "ERROR: Output chunk file {} could not be created. Possible permissions \
+                         or disk space issue?",
+                        chunk.output()
+                    ),
+                    frame,
+                ));
+            }
+
             let encoded_frames = get_num_frames(chunk.output().as_ref());
 
             let err_str = match encoded_frames {
@@ -919,12 +935,14 @@ impl Av1anContext {
                 temp:         self.args.temp.clone(),
                 chunk_method: ChunkMethod::Select,
                 is_proxy:     false,
+                cache_mode:   self.args.cache_mode,
             },
             proxy: self.args.proxy.as_ref().map(|proxy| Input::Video {
                 path:         proxy.as_path().to_path_buf(),
                 temp:         self.args.temp.clone(),
                 chunk_method: ChunkMethod::Select,
                 is_proxy:     true,
+                cache_mode:   self.args.cache_mode,
             }),
             source_cmd: ffmpeg_gen_cmd,
             proxy_cmd: None,
@@ -942,9 +960,7 @@ impl Av1anContext {
             target_quality: overrides.as_ref().map_or_else(
                 || self.args.target_quality.clone(),
                 |ovr| {
-                    ovr.target_quality
-                        .clone()
-                        .map_or_else(|| self.args.target_quality.clone(), |tq| tq)
+                    ovr.target_quality.clone().unwrap_or_else(|| self.args.target_quality.clone())
                 },
             ),
             tq_cq: None,
@@ -1276,12 +1292,14 @@ impl Av1anContext {
                 temp:         self.args.temp.clone(),
                 chunk_method: ChunkMethod::Segment,
                 is_proxy:     false,
+                cache_mode:   self.args.cache_mode,
             },
             proxy: self.args.proxy.as_ref().map(|proxy| Input::Video {
                 path:         proxy.as_path().to_path_buf(),
                 temp:         self.args.temp.clone(),
                 chunk_method: ChunkMethod::Segment,
                 is_proxy:     true,
+                cache_mode:   self.args.cache_mode,
             }),
             source_cmd: ffmpeg_gen_cmd,
             proxy_cmd: None,
@@ -1300,9 +1318,7 @@ impl Av1anContext {
             target_quality: overrides.as_ref().map_or_else(
                 || self.args.target_quality.clone(),
                 |ovr| {
-                    ovr.target_quality
-                        .clone()
-                        .map_or_else(|| self.args.target_quality.clone(), |tq| tq)
+                    ovr.target_quality.clone().unwrap_or_else(|| self.args.target_quality.clone())
                 },
             ),
             tq_cq: None,

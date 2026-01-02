@@ -13,7 +13,7 @@ use av1an_core::{
     hash_path,
     into_vec,
     read_in_dir,
-    vapoursynth::{get_vapoursynth_plugins, VSZipVersion},
+    vapoursynth::{get_vapoursynth_plugins, CacheSource, VSZipVersion},
     Av1anContext,
     ChunkMethod,
     ChunkOrdering,
@@ -611,6 +611,14 @@ pub struct CliOpts {
     #[clap(long, help_heading = "Encoding", verbatim_doc_comment)]
     pub zones: Option<PathBuf>,
 
+    /// Set chunk cache index mode
+    ///
+    /// source - Place source cache next to video.
+    ///
+    /// temp - Place source cache in temp directory.
+    #[clap(long, default_value_t = CacheSource::SOURCE, help_heading = "Encoding" ,)]
+    pub cache_mode: CacheSource,
+
     /// Plot an SVG of the VMAF for the encode
     ///
     /// This option is independent of --target-quality, i.e. it can be used with
@@ -911,9 +919,9 @@ pub(crate) fn resolve_file_paths(path: &Path) -> anyhow::Result<Box<dyn Iterator
 
     ensure!(
         path.exists(),
-        "Input path {:?} does not exist. Please ensure you typed it properly and it has not been \
+        "Input path {} does not exist. Please ensure you typed it properly and it has not been \
          moved.",
-        path
+        path.display()
     );
 
     if path.is_dir() {
@@ -925,7 +933,7 @@ pub(crate) fn resolve_file_paths(path: &Path) -> anyhow::Result<Box<dyn Iterator
 
 /// Returns vector of Encode args ready to be fed to encoder
 #[tracing::instrument(level = "debug")]
-pub fn parse_cli(args: CliOpts) -> anyhow::Result<Vec<EncodeArgs>> {
+pub fn parse_cli(args: &CliOpts) -> anyhow::Result<Vec<EncodeArgs>> {
     let input_paths = &*args.input;
     let proxy_paths = &*args.proxy;
 
@@ -979,6 +987,7 @@ pub fn parse_cli(args: CliOpts) -> anyhow::Result<Vec<EncodeArgs>> {
             args.sc_pix_format,
             Some(&scaler),
             false,
+            args.cache_mode,
         )?;
 
         // Assumes proxies supplied are the same number as inputs. Otherwise gets the
@@ -994,6 +1003,7 @@ pub fn parse_cli(args: CliOpts) -> anyhow::Result<Vec<EncodeArgs>> {
                 args.sc_pix_format,
                 Some(&scaler),
                 true,
+                args.cache_mode,
             )?)
         } else {
             None
@@ -1051,11 +1061,7 @@ pub fn parse_cli(args: CliOpts) -> anyhow::Result<Vec<EncodeArgs>> {
             temp: temp.clone(),
             force: args.force,
             no_defaults: args.no_defaults,
-            passes: if let Some(passes) = args.passes {
-                passes
-            } else {
-                args.encoder.get_default_pass()
-            },
+            passes: args.passes.map_or_else(|| args.encoder.get_default_pass(), |passes| passes),
             video_params: video_params.clone(),
             output_file: if let Some(path) = args.output_file.as_ref() {
                 let path = PathAbs::new(path)?;
@@ -1092,9 +1098,10 @@ pub fn parse_cli(args: CliOpts) -> anyhow::Result<Vec<EncodeArgs>> {
                 Some(0) => None,
                 Some(x) => Some(x),
                 // Make sure it's at least 10 seconds, unless specified by user
-                None => {
-                    Some((clip_info.frame_rate.to_f64().unwrap() * args.extra_split_sec) as usize)
-                },
+                None => Some(
+                    (clip_info.frame_rate.to_f64().unwrap() * args.extra_split_sec).round()
+                        as usize,
+                ),
             },
             photon_noise: args.photon_noise.and_then(|arg| if arg == 0 { None } else { Some(arg) }),
             photon_noise_size: (args.photon_noise_width, args.photon_noise_height),
@@ -1103,6 +1110,7 @@ pub fn parse_cli(args: CliOpts) -> anyhow::Result<Vec<EncodeArgs>> {
             keep: args.keep,
             max_tries: args.max_tries as usize,
             min_scene_len: args.min_scene_len,
+            cache_mode: args.cache_mode,
             input_pix_format: {
                 match &input {
                     Input::Video {
@@ -1229,7 +1237,7 @@ pub fn run() -> anyhow::Result<()> {
         log_level,
     )?;
 
-    let args = parse_cli(cli_options)?;
+    let args = parse_cli(&cli_options)?;
     for arg in args {
         Av1anContext::new(arg)?.encode_file()?;
     }

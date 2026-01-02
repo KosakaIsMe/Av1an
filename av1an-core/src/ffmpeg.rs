@@ -49,7 +49,7 @@ struct FfProbeStreamInfo {
     pub pix_fmt:        String,
     pub color_transfer: Option<String>,
     pub avg_frame_rate: String,
-    pub nb_frames:      Option<usize>,
+    pub nb_frames:      Option<String>,
 }
 
 #[inline]
@@ -82,9 +82,9 @@ pub fn get_clip_info(source: &Path) -> anyhow::Result<ClipInfo> {
             Some("smpte2084") => av1_grain::TransferFunction::SMPTE2084,
             _ => av1_grain::TransferFunction::BT1886,
         },
-        num_frames:               match stream_info.nb_frames {
-            Some(nb_frames) => nb_frames,
-            None => get_num_frames(source)?,
+        num_frames:               match stream_info.nb_frames.as_deref().map(str::parse) {
+            Some(Ok(nb_frames)) => nb_frames,
+            _ => get_num_frames(source)?,
         },
     })
 }
@@ -156,6 +156,7 @@ struct FfProbeKeyframeFrame {
 
 /// Returns vec of all keyframes
 #[tracing::instrument(level = "debug")]
+#[inline]
 pub fn get_keyframes(source: &Path) -> anyhow::Result<Vec<usize>> {
     // This is slow because it has to iterate through the whole video,
     // but it is the best suggestion that reliably worked
